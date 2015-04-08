@@ -71,9 +71,22 @@ class Panda::Ecosystem {
         try unlink $!projectsfile;
         my $s;
         if  %*ENV<http_proxy> {
-          my ($host, $port) = %*ENV<http_proxy>.split('/').[2].split(':');
-          $s = IO::Socket::INET.new(host=>$host, port=>$port.Int);
-          $s.send("GET http://ecosystem-api.p6c.org/projects.json HTTP/1.1\nHost: ecosystem-api.p6c.org\nAccept: */*\nConnection: Close\n\n");
+          %*ENV<http_proxy> ~~ /$<protocol>=.* '://' [ $<auth>=.* '@' ]? $<host>=.* ':' $<port>=.*/;
+          $s = IO::Socket::INET.new(host => ~$<host>, port => +$<port>);
+          $s.send(qq:to/END/
+              GET http://ecosystem-api.p6c.org/projects.json HTTP/1.1
+              Host: ecosystem-api.p6c.org
+              Accept: */*
+              Connection: Close
+              {
+                  if $<auth> {
+                      use MIME::Base64;
+                      "Proxy-Authorization: Basic { MIME::Base64.encode-str(~$<auth>) }"
+                  }
+              }
+
+              END
+          );
         }
         else {
           $s = IO::Socket::INET.new(:host<ecosystem-api.p6c.org>, :port(80));
